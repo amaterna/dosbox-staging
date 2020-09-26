@@ -393,6 +393,7 @@ void DOSBOX_Init(void) {
 	Prop_string* Pstring; // use pstring when touching properties
 	Prop_string *pstring;
 	Prop_bool* Pbool;
+	Prop_bool *pbool; // use pbool when touching bool properties
 	Prop_multival *pmulti;
 	Prop_multival_remain* Pmulti_remain;
 
@@ -712,9 +713,22 @@ void DOSBOX_Init(void) {
 	pint->SetMinMax(8000, 48000);
 	pint->Set_help("Sample rate of the PC-Speaker sound generation.");
 
-	secprop->AddInitFunction(&TANDYSOUND_Init,true);//done
-	const char* tandys[] = { "auto", "on", "off", 0};
-	Pstring = secprop->Add_string("tandy",Property::Changeable::WhenIdle,"auto");
+#if defined(WIN32)
+	pbool = secprop->Add_bool("neutralize_dc_offset", when_idle, false);
+	pbool->Set_help("Neutralizes trailing DC-offset when detected. Note: Windows 10\n"
+	                "and the popular RealTek audio drivers have been known to perform\n"
+	                "their own post-processing and DC-offset correction, therefore\n"
+	                "this is set to false by default on Windows systems.");
+#else
+	pbool = secprop->Add_bool("neutralize_dc_offset", when_idle, true);
+	pbool->Set_help("Neutralizes trailing DC-offset when detected. Note: If your OS or\n"
+	                "audio system performs post-processing and/or DC-offset correction,\n"
+	                "then this should be set to false.");
+#endif
+
+	secprop->AddInitFunction(&TANDYSOUND_Init, true); // done
+	const char *tandys[] = {"auto", "on", "off", 0};
+	Pstring = secprop->Add_string("tandy", when_idle, "auto");
 	Pstring->Set_values(tandys);
 	Pstring->Set_help("Enable Tandy Sound System emulation. For 'auto', emulation is present only if machine is set to 'tandy'.");
 
