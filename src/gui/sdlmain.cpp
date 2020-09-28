@@ -2489,6 +2489,8 @@ void GFX_Events() {
 	}
 #endif
 	while (SDL_PollEvent(&event)) {
+		LOG_MSG("SDL: received keysym %#x named %s", event.key.keysym.sym,
+		        SDL_GetKeyName(event.key.keysym.sym));
 		switch (event.type) {
 		case SDL_WINDOWEVENT:
 			switch (event.window.event) {
