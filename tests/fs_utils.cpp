@@ -41,10 +41,10 @@ TEST(PathExists, MissingPath)
 	EXPECT_FALSE(fs_exists("foobar"));
 }
 
-TEST(PathConversion, SimpleTest_DISABLED)
+TEST(PathConversion, SimpleTest)
 {
 	constexpr auto expected_result = "tests/files/paths/empty.txt";
-	constexpr auto input = "tests/files/PATHS/EMPTY.TXT";
+	constexpr auto input = "tests\\files\\PATHS\\EMPTY.TXT";
 	ASSERT_TRUE(fs_exists(expected_result));
 	EXPECT_EQ(expected_result, to_posix_path(input));
 }

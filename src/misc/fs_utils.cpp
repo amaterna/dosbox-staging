@@ -26,14 +26,47 @@
 #include <string>
 #include <sys/stat.h>
 
+#include "compiler.h"
+#include "logging.h"
+
 bool fs_exists(const char *path) noexcept
 {
 	struct stat sb;
 	return (stat(path, &sb) == 0);
 }
 
-std::string to_posix_path(const char *ipath)
+static std::string translate_to_glob_pattern(const std::string &win_path)
 {
+	std::string glob_pattern;
+	glob_pattern.reserve(win_path.size() * 4);
+	char one_char_pattern[5] = "[aA]";
+	for (char c : win_path) {
+		if (isalpha(c)) {
+			one_char_pattern[1] = tolower(c);
+			one_char_pattern[2] = toupper(c);
+			glob_pattern.append(one_char_pattern);
+			continue;
+		}
+		switch (c) {
+		case '\\':
+			glob_pattern.push_back('/');
+			continue;
+		case '?':
+		case '*':
+		case '[':
+		case ']':
+			glob_pattern.push_back('\\');
+			glob_pattern.push_back(c);
+			continue;
+		}
+	}
+	return glob_pattern;
+}
+
+std::string to_posix_path(const std::string &win_path)
+{
+	const std::string pattern = translate_to_glob_pattern(win_path);
+	DEBUG_LOG_MSG(":: %s", pattern.c_str());
 	return "";
 }
 
