@@ -26,6 +26,6 @@
 // similar interface to C++17 std::filesystem::exists
 bool fs_exists(const char *path) noexcept;
 
-std::string to_posix_path(const char *ipath);
+std::string to_posix_path(const std::string &win_path);
 
 #endif
