@@ -1296,6 +1296,8 @@ public:
 					char tmp[CROSS_LEN];
 					safe_strcpy(tmp, temp_line.c_str());
 
+					DEBUG_LOG_MSG(":: %s", tmp);
+
 					Bit8u dummy;
 					if (!DOS_MakeName(tmp, fullname, &dummy) || strncmp(Drives[dummy]->GetInfo(),"local directory",15)) {
 						WriteOut(MSG_Get("PROGRAM_IMGMOUNT_NON_LOCAL_DRIVE"));

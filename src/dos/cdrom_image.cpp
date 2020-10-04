@@ -1177,7 +1177,7 @@ bool CDROM_Interface_Image::LoadCueSheet(char *cuefile)
 	safe_strcpy(tmp, cuefile);
 	string pathname(dirname(tmp));
 	ifstream in;
-	in.open(cuefile, ios::in);
+	in.open(to_posix_path(cuefile), ios::in);
 	if (in.fail()) {
 		return false;
 	}
