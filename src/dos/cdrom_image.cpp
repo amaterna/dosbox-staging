@@ -41,6 +41,7 @@
 #include "drives.h"
 #include "support.h"
 #include "setup.h"
+#include "fs_utils.h"
 
 using namespace std;
 
@@ -1395,11 +1396,17 @@ bool CDROM_Interface_Image::GetRealFileName(string &filename, string &pathname)
 	}
 
 	// check if file with path relative to cue file exists
-	string tmpstr(pathname + "/" + filename);
+	const std::string cue_file_entry = (pathname + "/" + filename);
+	const std::string tmpstr = to_posix_path(cue_file_entry);
+	DOS_PrintF("Cue entry:   %s\r\n", filename.c_str());
+	DOS_PrintF("Looking for: %s\r\n", cue_file_entry.c_str());
+	DOS_PrintF("Found file:  %s\r\n", tmpstr.c_str());
+	DOS_PrintF("\r\n");
 	if (stat(tmpstr.c_str(), &test) == 0) {
 		filename = tmpstr;
 		return true;
 	}
+
 	// finally check if file is in a dosbox local drive
 	char fullname[CROSS_LEN];
 	char tmp[CROSS_LEN];
@@ -1435,9 +1442,9 @@ bool CDROM_Interface_Image::GetRealFileName(string &filename, string &pathname)
 		return true;
 	}
 
-	tmpstr = pathname + "/" + copy;
+	const std::string tmpstr1 = pathname + "/" + copy;
 	if (stat(tmpstr.c_str(), &test) == 0) {
-		filename = tmpstr;
+		filename = tmpstr1;
 		return true;
 	}
 #endif
