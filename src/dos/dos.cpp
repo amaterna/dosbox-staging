@@ -1271,6 +1271,21 @@ DOS_Version DOS_ParseVersion(const char *word, const char *args)
 	return new_version;
 }
 
+int DOS_PrintF(const char *format, ...)
+{
+	char buf[512];
+	va_list msg;
+	va_start(msg, format);
+	const int len = vsnprintf(buf, sizeof(buf), format, msg);
+	va_end(msg);
+	if (len <= 0) // error or empty string
+		return len;
+	auto n = static_cast<uint16_t>(len);
+	if (!DOS_WriteFile(STDOUT, reinterpret_cast<uint8_t *>(buf), &n))
+		return -1;
+	return n;
+}
+
 class DOS:public Module_base{
 private:
 	CALLBACK_HandlerObject callback[7];

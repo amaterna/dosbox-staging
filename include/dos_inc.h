@@ -205,6 +205,9 @@ bool DOS_LayoutKey(Bitu key, Bit8u flags1, Bit8u flags2, Bit8u flags3);
 
 DOS_Version DOS_ParseVersion(const char *word, const char *args);
 
+/* printf to DOS console */
+int DOS_PrintF(const char *format, ...) GCC_ATTRIBUTE(__format__(__printf__, 1, 2));
+
 enum {
 	KEYB_NOERROR=0,
 	KEYB_FILENOTFOUND,
