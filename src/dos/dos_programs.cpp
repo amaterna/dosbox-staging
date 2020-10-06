@@ -40,6 +40,7 @@
 #include "dma.h"
 #include "shell.h"
 #include "program_autotype.h"
+#include "fs_utils.h"
 
 #if defined(WIN32)
 #ifndef S_ISDIR
@@ -1282,6 +1283,13 @@ public:
 
 		// find all file parameters, assuming that all option parameters have been removed
 		while (cmd->FindCommand((unsigned int)(paths.size() + 2), temp_line) && temp_line.size()) {
+
+			// DEBUG_LOG_MSG("::: %s", temp_line.c_str());
+
+			// const std::string pp = to_posix_path(temp_line);
+
+			// DEBUG_LOG_MSG("::: %s", pp.c_str());
+			temp_line = to_posix_path(temp_line);
 
 			struct stat test;
 			if (stat(temp_line.c_str(),&test)) {
