@@ -73,7 +73,9 @@ std::string to_posix_path(const std::string &win_path)
 	// TODO if exact path (except separator) exists, then just return it
 	const std::string pattern = translate_to_glob_pattern(win_path);
 	glob_t pglob;
-	const int err = glob(pattern.c_str(), GLOB_TILDE_CHECK, nullptr, &pglob);
+	// macOS is missing GLOB_TILDE_CHECK (which we want)
+	// using GLOB_TILDE requires us to double-check if returned path exists
+	const int err = glob(pattern.c_str(), GLOB_TILDE, nullptr, &pglob);
 	if (err == GLOB_NOMATCH) {
 		DEBUG_LOG_MSG(":: NOMATCH");
 		globfree(&pglob);
