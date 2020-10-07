@@ -68,6 +68,7 @@ channel.
 #include "dosbox.h"
 #include "logging.h"
 #include "mixer.h"
+#include "support.h"
 
 #include <algorithm>
 #include <array>
@@ -84,8 +85,10 @@ public:
 
 	using in_array_t = std::array<float, array_frames * 2>; // 2 for stereo
 	using out_array_t = std::array<int16_t, array_frames * 2>; // 2 for stereo
+	using in_array_iterator_t = typename std::array<float, array_frames * 2>::iterator;
+	using out_array_iterator_t = typename std::array<int16_t, array_frames * 2>::iterator;
 
-	void Apply(const in_array_t &in, out_array_t &out, uint16_t frames) noexcept;
+	const out_array_t &Apply(in_array_t &in, uint16_t frames) noexcept;
 	const AudioFrame &GetPeaks() const noexcept { return peak; }
 	void PrintStats() const;
 	void Reset() noexcept;
@@ -96,15 +99,38 @@ private:
 	constexpr static float upper_bound = static_cast<float>(out_limits::max());
 	constexpr static float lower_bound = static_cast<float>(out_limits::min());
 
-	bool FindPeaks(const in_array_t &stream, uint16_t frames) noexcept;
+	static constexpr size_t LEFT = 0;
+	static constexpr size_t RIGHT = 1;
+	void FindPeaks(in_array_t &stream, uint16_t frames) noexcept;
 	void Release() noexcept;
+	void SaveTailFrame(const uint16_t req_frames) noexcept;
 
+	void ScaleSide(in_array_iterator_t in_pos,
+	               const in_array_iterator_t in_pos_last,
+	               out_array_iterator_t out_pos,
+	               const float poly_add,
+	               const float poly_mult) noexcept;
+	void TriageSignal(in_array_t &in,
+	                  out_array_t &out,
+	                  const size_t side,
+	                  float &local,
+	                  const in_array_iterator_t last_pos,
+	                  const float pre,
+	                  float &existing,
+	                  const float add,
+	                  float &scale);
+	out_array_t out;
 	std::string channel_name = {};
+	const AudioFrame &prescale;      // scale before operating on the stream
 	AudioFrame limit_scale = {1, 1}; // real-time limit applied to stream
 	AudioFrame peak = {1, 1};        // holds real-time peak amplitudes
-	const AudioFrame &prescale;      // scale before operating on the stream
-	int limited_ms = 0;              // milliseconds that needed limiting
+	AudioFrame tail = {0, 0}; // holds the prior sequence's tail frame
+	in_array_iterator_t peak_pos_left = nullptr;
+	in_array_iterator_t peak_pos_right = nullptr;
+	int limited_ms = 0;     // milliseconds that needed limiting
 	int non_limited_ms = 0; // milliseconds that didn't need limiting
+	uint16_t remaining_incr_left = 0;
+	uint16_t remaining_incr_right = 0;
 };
 
 template <size_t array_frames>
@@ -117,65 +143,108 @@ SoftLimiter<array_frames>::SoftLimiter(const std::string &name, const AudioFrame
 }
 
 template <size_t array_frames>
-bool SoftLimiter<array_frames>::FindPeaks(const in_array_t &stream,
-                                          const uint16_t samples) noexcept
+void SoftLimiter<array_frames>::ScaleSide(in_array_iterator_t in_pos,
+                                          const in_array_iterator_t in_pos_last,
+                                          out_array_iterator_t out_pos,
+                                          const float poly_add,
+                                          const float poly_mult) noexcept
 {
-	auto val = stream.begin();
-	const auto val_end = stream.begin() + samples;
-	AudioFrame local_peak{};
-	while (val < val_end) {
-		// Left channel
-		local_peak.left = std::max(local_peak.left, fabsf(*val++));
-		local_peak.right = std::max(local_peak.right, fabsf(*val++));
+	while (in_pos <= in_pos_last) {
+		const auto adjusted = poly_add + (*in_pos) * poly_mult;
+		*out_pos = static_cast<int16_t>(adjusted);
+		out_pos += 2;
+		in_pos += 2;
 	}
-	peak.left = std::max(peak.left, prescale.left * local_peak.left);
-	peak.right = std::max(peak.right, prescale.right * local_peak.right);
-
-	const bool limiting_needed = (peak.left > upper_bound ||
-	                              peak.right > upper_bound);
-
-	// Calculate the percent we need to scale down each channel. In cases
-	// where one channel is less than the upper-bound, its time_ratio is limited
-	// to 1.0 to retain the original level.
-	if (limiting_needed)
-		limit_scale = {std::min(1.0f, upper_bound / peak.left),
-		               std::min(1.0f, upper_bound / peak.right)};
-
-	return limiting_needed;
-	// LOG_MSG("%s peak left = %f", channel_name.c_str(),
-	// static_cast<double>(peak.left));
 }
 
 template <size_t array_frames>
-void SoftLimiter<array_frames>::Apply(const in_array_t &in,
-                                      out_array_t &out,
-                                      const uint16_t req_frames) noexcept
+void SoftLimiter<array_frames>::TriageSignal(in_array_t &in,
+                                             out_array_t &out,
+                                             const size_t side,
+                                             float &local,
+                                             const in_array_iterator_t last_pos,
+                                             const float pre,
+                                             float &existing,
+                                             const float add,
+                                             float &scale)
+{
+	local *= pre;
+
+	// New peak!
+	if (local > existing && local > upper_bound) {
+		existing = local;
+		const auto mult = (upper_bound - add) / (local - add);
+		// Scale from the previous tail up to the local peak
+		// using a polynomial
+		ScaleSide(in.begin() + side, last_pos, out.begin() + side, add, mult);
+
+		// Scale from after the local peak to the end of the
+		// sequence using a pure scalar
+		scale = upper_bound / existing;
+		ScaleSide(last_pos + side + 2, in.end() - (side + 2),
+		          out.begin() + (last_pos - in.begin()) + side + 2, 0,
+		          scale);
+	} else if (existing > upper_bound) {
+		scale = upper_bound / existing;
+		ScaleSide(in.begin() + side, in.end() - (side + 2),
+		          out.begin() + side, 0, scale);
+	} else {
+		ScaleSide(in.begin() + side, in.end() - (side + 2),
+		          out.begin() + side, 0, 1.0f);
+	}
+}
+
+template <size_t array_frames>
+void SoftLimiter<array_frames>::FindPeaks(in_array_t &in, const uint16_t samples) noexcept
+{
+	auto pos = in.begin();
+	const auto pos_end = in.begin() + samples;
+	AudioFrame local_peak{};
+
+	while (pos < pos_end) {
+		const auto val_left = fabsf(*pos);
+		if (val_left > local_peak.left) {
+			local_peak.left = val_left;
+			peak_pos_left = pos;
+		}
+		++pos;
+		const auto val_right = fabsf(*pos);
+		if (val_right > local_peak.right) {
+			local_peak.right = val_right;
+			peak_pos_right = pos;
+		}
+		++pos;
+	}
+	TriageSignal(in, out, LEFT, local_peak.left, peak_pos_left,
+	             prescale.left, peak.left, tail.left, limit_scale.left);
+	TriageSignal(in, out, RIGHT, local_peak.right, peak_pos_right,
+	             prescale.right, peak.right, tail.right, limit_scale.right);
+}
+
+template <size_t array_frames>
+void SoftLimiter<array_frames>::SaveTailFrame(const uint16_t req_frames) noexcept
+{
+	if (req_frames) {
+		const size_t offset = (req_frames - 1) * 2;
+		tail.left = static_cast<float>(out[offset]);
+		tail.right = static_cast<float>(out[offset + 1]);
+	} else {
+		tail = {0, 0};
+	}
+}
+
+template <size_t array_frames>
+const typename SoftLimiter<array_frames>::out_array_t &SoftLimiter<array_frames>::Apply(
+        in_array_t &in, const uint16_t req_frames) noexcept
 {
 	// Ensure the buffers are large enough to handle the request
 	const uint16_t samples = req_frames * 2; // left and right channels
 	assert(samples <= in.size());
 
-	const bool limiting_needed = FindPeaks(in, samples);
-
-	// get our in and out iterators
-	auto in_val = in.begin();
-	const auto in_val_end = in.begin() + samples;
-	auto out_val = out.begin();
-
-	// apply both the pre-scale and limit-scale to determine the final scale
-	const AudioFrame scale{prescale.left * limit_scale.left,
-	                       prescale.right * limit_scale.right};
-
-	// Process the signal by pre-scaling and limit-scaling
-	// Note: if limit-scaling isn't needed then its values are simply 1.0
-	while (in_val < in_val_end) {
-		*out_val++ = static_cast<int16_t>(*in_val++ * scale.left);
-		*out_val++ = static_cast<int16_t>(*in_val++ * scale.right);
-	}
-	if (limiting_needed)
-		Release();
-	else
-		non_limited_ms++;
+	FindPeaks(in, samples);
+	SaveTailFrame(req_frames);
+	Release();
+	return out;
 }
 
 template <size_t array_frames>
