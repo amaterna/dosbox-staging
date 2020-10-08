@@ -28,7 +28,7 @@
 bool path_exists(const char *path) noexcept
 {
 #if defined(WIN32)
-	return (access(path, 0) == 0);
+	return (_access_s(path, 0) == 0);
 #else
 	return (access(path, F_OK) == 0);
 #endif
