@@ -23,7 +23,12 @@
 
 #include "fs_utils.h"
 
+#include <cinttypes>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
+
+#include "compiler.h"
 
 bool path_exists(const char *path) noexcept
 {
@@ -31,6 +36,16 @@ bool path_exists(const char *path) noexcept
 	return (_access_s(path, 0) == 0);
 #else
 	return (access(path, F_OK) == 0);
+#endif
+}
+
+int create_dir(const char *pathname, MAYBE_UNUSED uint32_t mode)
+{
+#if defined(WIN32)
+	return _mkdir(pathname);
+#else
+	static_assert(sizeof(mode_t) == sizeof(uint32_t), "");
+	return mkdir(pathname, mode);
 #endif
 }
 

@@ -21,6 +21,7 @@
 #ifndef DOSBOX_FS_UTILS_H
 #define DOSBOX_FS_UTILS_H
 
+#include <cinttypes>
 #include <string>
 
 // Checks if the given path corresponds to an existing file or directory.
@@ -31,5 +32,11 @@ inline bool path_exists(const std::string &path) noexcept
 {
 	return path_exists(path.c_str());
 }
+
+// TODO document
+// ops; EEXISTS indicates that directory exists already
+// double check if it exists on windows
+
+int create_dir(const char *pathname, uint32_t mode);
 
 #endif

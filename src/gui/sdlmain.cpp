@@ -59,6 +59,7 @@
 #include "cpu.h"
 #include "control.h"
 #include "render.h"
+#include "fs_utils.h"
 
 #include "../libs/ppscale/ppscale.h"
 
@@ -3053,9 +3054,9 @@ static void launchcaptures(std::string const& edit) {
 	}
 	Cross::CreatePlatformConfigDir(path);
 	path += file;
-	Cross::CreateDir(path);
+	const int err = create_dir(path.c_str(), 0700);
 	struct stat cstat;
-	if(stat(path.c_str(),&cstat) || (cstat.st_mode & S_IFDIR) == 0) {
+	if (err != 0 || stat(path.c_str(), &cstat) || (cstat.st_mode & S_IFDIR) == 0) {
 		printf("%s doesn't exists or isn't a directory.\n",path.c_str());
 		exit(1);
 	}

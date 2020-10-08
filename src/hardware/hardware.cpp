@@ -29,6 +29,7 @@
 #include "pic.h"
 #include "render.h"
 #include "cross.h"
+#include "fs_utils.h"
 
 #if (C_SSHOT)
 #include <png.h>
@@ -91,11 +92,13 @@ FILE * OpenCaptureFile(const char * type,const char * ext) {
 	/* Find a filename to open */
 	dir = open_directory(capturedir.c_str());
 	if (!dir) {
-		//Try creating it first
-		Cross::CreateDir(capturedir);
+		// Try creating it first
+		const int err = create_dir(capturedir.c_str(), 0700);
+		if (err != 0)
+			LOG_MSG("Can't create dir %s", capturedir.c_str());
+
 		dir=open_directory(capturedir.c_str());
-		if(!dir) {
-		
+		if (!dir) {
 			LOG_MSG("Can't open dir %s for capturing %s",capturedir.c_str(),type);
 			return 0;
 		}
